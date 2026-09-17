@@ -8,17 +8,86 @@ date: "2026-09-17"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Methodology: 
+Data upload from excel:
 
-```{r cars}
-summary(cars)
+```{r}
+install.packages("readxl")
 ```
 
-## Including Plots
-You can also embed plots, for example:
+```{r load-data}
+library(readxl)
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+general<- read_excel("rq3_general_nnpas_cleaned.xlsx")
+indigenous <- read_excel("rq3_indigenous_natsinpas_cleaned.xlsx") 
+head(general)
+excel_sheets("rq3_general_nnpas_cleaned.xlsx")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+general <- read_excel("rq3_general_nnpas_cleaned.xlsx", sheet = "eligible_sample")
+head(general)
+```
+```{r}
+excel_sheets("rq3_indigenous_natsinpas_cleaned.xlsx")
+indigenous <- read_excel("rq3_indigenous_natsinpas_cleaned.xlsx", sheet = "eligible_sample")
+head(indigenous)
+```
+```{r}
+names(general)
+names(indigenous)
+```
+## Confounders
+Based on prior literature and biological plausibility, we selected the following as confounders:
+-Age
+-Sex
+-Socioeconomic status (SEIFA disadvantge index, income decile)
+-Smoking status
+-Education/qualification level
+-alcohol level
+-energy levels
+
+Rosetta (main model):
+
+
+Amelie (robustness):
+```{r}
+install.packages("robustbase")
+library(robustbase)
+```
+General (Non-indigenous):
+Boxplot of bmi, waist, fibre
+```{r}
+check_outliers <- function(data, name) {
+  boxplot(data$bmi, main = paste(name, "- BMI"))
+  boxplot(data$waist_cm, main = paste(name, "- Waist Circumference"))
+  boxplot(data$fibre_2day_avg_g, main = paste(name, "- Fibre Intake"))
+}
+
+check_outliers(general, "General")
+check_outliers(indigenous, "Indigenous")
+```
+Boxplot write up:
+
+
+
+```{r}
+install.packages("mice")
+```
+Missing data check:
+```{r}
+check_missing <- function(data, name) {
+  cat("Missingness for", name, ":\n")
+  print(colSums(is.na(data)))
+  cat("\n")
+}
+
+check_missing(general, "General")
+check_missing(indigenous, "Indigenous")
+```
+Missingness write up:
+
+
+
+Gary/Selina (assumptions):
+
+
