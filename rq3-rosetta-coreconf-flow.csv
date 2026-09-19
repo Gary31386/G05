@@ -1,0 +1,17 @@
+"group","pa_definition","stage","n"
+"General NNPAS","EXREGUIC","Aged 18-65",7528
+"General NNPAS","EXREGUIC","Valid measured BMI",6415
+"General NNPAS","EXREGUIC","After pregnancy exclusion",6415
+"General NNPAS","EXREGUIC","Complete model covariates",6364
+"General NNPAS","EXREGUID","Aged 18-65",7528
+"General NNPAS","EXREGUID","Valid measured BMI",6415
+"General NNPAS","EXREGUID","After pregnancy exclusion",6415
+"General NNPAS","EXREGUID","Complete model covariates",6348
+"Indigenous NATSINPAS (non-remote)","EXREGUIC","Aged 18-65",1119
+"Indigenous NATSINPAS (non-remote)","EXREGUIC","Valid measured BMI",980
+"Indigenous NATSINPAS (non-remote)","EXREGUIC","After pregnancy exclusion",980
+"Indigenous NATSINPAS (non-remote)","EXREGUIC","Complete model covariates",974
+"Indigenous NATSINPAS (non-remote)","EXREGUID","Aged 18-65",1119
+"Indigenous NATSINPAS (non-remote)","EXREGUID","Valid measured BMI",980
+"Indigenous NATSINPAS (non-remote)","EXREGUID","After pregnancy exclusion",980
+"Indigenous NATSINPAS (non-remote)","EXREGUID","Complete model covariates",972

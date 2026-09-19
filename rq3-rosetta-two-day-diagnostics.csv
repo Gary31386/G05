@@ -1,0 +1,3 @@
+"group","n","obesity_cases","replicate_weights","weighted_obesity_percent","weighted_brier","design_matrix_condition_number","fibre_99th_percentile_g","top_1_percent_excluded_n","top_1_percent_interaction_or","top_1_percent_interaction_ci_low","top_1_percent_interaction_ci_high","quadratic_fibre_joint_p"
+"General NNPAS",3960,1055,60,25.6148741490345,0.178114087573708,22.740647698822,55.0848499999999,40,0.961150391606883,0.85109397006677,1.08543839784647,0.76648458231705
+"Indigenous NATSINPAS",408,190,250,42.2810299686512,0.211400725261711,26.2031212869853,45.1534687,5,0.847994266569316,0.552836474102392,1.30073594963499,0.281653481266087

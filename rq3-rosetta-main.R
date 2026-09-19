@@ -1,90 +1,84 @@
-# Team 5 RQ3 main analysis using the two cleaned eligible_sample sheets.
-# Requires readxl and survey. Restricted respondent-level data stay local.
-# Set RQ3_RAW_DATA_DIR to the folder containing AHSnpa11bp.csv and inp13bsp.csv.
-suppressPackageStartupMessages({
-  library(readxl)
-  library(survey)
-})
+# Rosetta's primary RQ3 analysis uses Day 1 intake and survey person weights.
+# Exports aggregate tables only; two-day intake is a separately reported sensitivity.
+# Requires the authorised 2011-12 NNPAS and 2012-13 NATSINPAS Basic CURFs.
+suppressPackageStartupMessages(library(survey))
 options(survey.lonely.psu = "adjust")
 
+raw_dir <- Sys.getenv("RQ3_RAW_DATA_DIR", unset = "")
+if (!nzchar(raw_dir)) stop("Set RQ3_RAW_DATA_DIR to the authorised ABS Basic CURF folder.")
 args <- commandArgs(trailingOnly = FALSE)
 script_arg <- grep("^--file=", args, value = TRUE)
 repo <- if (length(script_arg)) dirname(normalizePath(sub("^--file=", "", script_arg[1]))) else getwd()
-raw_dir <- Sys.getenv("RQ3_RAW_DATA_DIR", unset = "")
-if (!nzchar(raw_dir)) stop("Set RQ3_RAW_DATA_DIR to the authorised ABS Basic CURF folder.")
 out_dir <- Sys.getenv("RQ3_OUTPUT_DIR", unset = repo)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-as_num <- function(x) suppressWarnings(as.numeric(as.character(x)))
+num <- function(x) suppressWarnings(as.numeric(as.character(x)))
+read_abs <- function(file) read.csv(file.path(raw_dir, file), stringsAsFactors = FALSE)
 
-prepare <- function(group) {
-  general <- group == "General NNPAS"
-  book <- file.path(repo, if (general) "rq3_general_nnpas_cleaned.xlsx" else "rq3_indigenous_natsinpas_cleaned.xlsx")
-  raw_file <- file.path(raw_dir, if (general) "AHSnpa11bp.csv" else "inp13bsp.csv")
-  if (!file.exists(book) || !file.exists(raw_file)) stop("Missing input for ", group)
-  clean <- as.data.frame(read_excel(book, sheet = "eligible_sample"))
-  raw <- read.csv(raw_file, stringsAsFactors = FALSE)
-  key <- if (general) as.character(raw$ABSPID) else paste(raw$ABSHID, raw$ABSGID, sep = "-")
-  stopifnot(!anyDuplicated(key), !anyDuplicated(clean$participant_id))
-  idx <- match(as.character(clean$participant_id), key)
-  stopifnot(all(!is.na(idx)))
-  reps <- if (general) sprintf("W2M01%02d", 1:60) else sprintf("WPM1%03d", 1:250)
-  stopifnot(all(reps %in% names(raw)))
-  raw <- raw[idx, , drop = FALSE]
-  expected_weight <- if (general) as_num(raw$NPAD2WGT) else as_num(raw$IPAFINWT)
-  stopifnot(all(abs(expected_weight - as_num(clean$selected_survey_weight)) < 1e-6))
-  pregnancy <- as_num(raw$SABDYMS) == 4
-  if (general) pregnancy <- pregnancy | as_num(raw$FEMLSBC) == 2
-  keep <- is.na(pregnancy) | !pregnancy
-  clean <- clean[keep, , drop = FALSE]
-  raw <- raw[keep, , drop = FALSE]
-  n_eligible <- nrow(clean)
+prepare <- function(group, pa_field) {
+  indigenous <- group == "Indigenous NATSINPAS (non-remote)"
+  p <- read_abs(if (indigenous) "inp13bsp.csv" else "AHSnpa11bp.csv")
+  if (indigenous) {
+    h <- read_abs("inp13bhh.csv")
+    stopifnot(!anyDuplicated(h$ABSHID))
+    p <- merge(p, h[, c("ABSHID", "RAECURF", "SF2SA1DB", "INCDECE")],
+               by = "ABSHID", all.x = TRUE, sort = FALSE)
+    p <- p[!is.na(p$RAECURF) & num(p$RAECURF) == 1, , drop = FALSE]
+  }
+  age_field <- if (indigenous) "AGEEC" else "AGEC"
+  age <- num(p[[age_field]])
+  p <- p[is.finite(age) & age >= 18 & age <= 65, , drop = FALSE]
+  n_age <- nrow(p)
+  bmi <- num(p$BMISC)
+  p <- p[is.finite(bmi) & bmi > 0 & bmi < 97, , drop = FALSE]
+  n_bmi <- nrow(p)
+  pregnant <- num(p$SABDYMS) == 4
+  if (!indigenous) pregnant <- pregnant | num(p$FEMLSBC) == 2
+  p <- p[is.na(pregnant) | !pregnant, , drop = FALSE]
+  n_pregnancy <- nrow(p)
 
-  pa <- as.character(clean$pa_guideline)
-  stopifnot(all(pa %in% c("Met 150-minute guideline", "Did not meet guideline")))
-  fibre <- as_num(clean$fibre_2day_avg_g)
-  energy <- as_num(clean$energy_2day_avg_kj)
-  alcohol <- as_num(clean$alcohol_2day_avg_g)
-  age <- as_num(clean$age)
-  sex <- as_num(clean$sex_raw)
-  ses <- as_num(clean$seifa_disadvantage)
-  income <- as_num(clean$income_decile)
-  school <- as_num(clean$highest_school_year_raw)
-  smoking <- as_num(clean$smoking_status_raw)
-  obese <- as_num(clean$obese_bmi)
-  wt <- as_num(clean$selected_survey_weight)
-  complete <- is.finite(fibre) & fibre >= 0 & is.finite(energy) & energy > 0 &
-    is.finite(alcohol) & alcohol >= 0 & is.finite(age) & age >= 18 & age <= 65 &
-    sex %in% 1:2 & ses %in% 1:5 & income %in% 1:10 & school %in% 1:5 &
-    smoking %in% 1:5 & obese %in% 0:1 & is.finite(wt) & wt > 0
-  n_complete <- sum(complete)
-  clean <- clean[complete, , drop = FALSE]
-  raw <- raw[complete, , drop = FALSE]
-  pa <- pa[complete]; fibre <- fibre[complete]; energy <- energy[complete]
-  alcohol <- alcohol[complete]; age <- age[complete]; sex <- sex[complete]
-  ses <- ses[complete]; income <- income[complete]; school <- school[complete]
-  smoking <- smoking[complete]; obese <- obese[complete]; wt <- wt[complete]
+  reps <- if (indigenous) sprintf("WPM1%03d", 1:250) else sprintf("WPM01%02d", 1:60)
+  weight_field <- if (indigenous) "IPAFINWT" else "NPAFINWT"
+  stopifnot(all(reps %in% names(p)), pa_field %in% names(p))
+  pa <- num(p[[pa_field]])
+  fibre <- num(p$FIBRET1)
+  energy <- num(p$ENERGYT1)
+  alcohol <- num(p$ALCT1)
+  wt <- num(p[[weight_field]])
+  sex <- num(p$SEX)
+  ses <- num(p[[if (indigenous) "SF2SA1DB" else "SF2SA1QN"]])
+  income <- num(p[[if (indigenous) "INCDECE" else "INCDEC"]])
+  school <- num(p$HYSCHCBC)
+  smoking <- num(p$SMKSTAT)
+  age <- num(p[[age_field]])
+  complete <- pa %in% 1:2 & is.finite(fibre) & fibre >= 0 &
+    is.finite(energy) & energy > 0 & is.finite(alcohol) & alcohol >= 0 &
+    is.finite(wt) & wt > 0 & sex %in% 1:2 & ses %in% 1:5 &
+    income %in% 1:10 & school %in% 1:5 & smoking %in% 1:5
+  p <- p[complete, , drop = FALSE]
   d <- data.frame(
-    obese = obese,
-    fibre = fibre,
-    fibre5 = (fibre - 20) / 5,
-    active = as.integer(pa == "Met 150-minute guideline"),
-    age10 = (age - 45) / 10,
-    female = as.integer(sex == 2),
-    energy_mj = (energy - 8000) / 1000,
-    ses = factor(ses, levels = 1:5),
-    income = income - 5.5,
-    year12 = as.integer(school == 1),
-    smoking = factor(ifelse(smoking %in% 1:3, "Current",
-                      ifelse(smoking == 4, "Former", "Never")),
+    obese = as.integer(num(p$BMISC) >= 30),
+    fibre = num(p$FIBRET1),
+    fibre5 = (num(p$FIBRET1) - 20) / 5,
+    active = as.integer(num(p[[pa_field]]) == 1),
+    age10 = (num(p[[age_field]]) - 45) / 10,
+    female = as.integer(num(p$SEX) == 2),
+    energy_mj = (num(p$ENERGYT1) - 8000) / 1000,
+    ses = factor(num(p[[if (indigenous) "SF2SA1DB" else "SF2SA1QN"]]), levels = 1:5),
+    income = num(p[[if (indigenous) "INCDECE" else "INCDEC"]]) - 5.5,
+    year12 = as.integer(num(p$HYSCHCBC) == 1),
+    smoking = factor(ifelse(num(p$SMKSTAT) %in% 1:3, "Current",
+                            ifelse(num(p$SMKSTAT) == 4, "Former", "Never")),
                      levels = c("Never", "Former", "Current")),
-    alcohol = log1p(alcohol / 10),
-    mainwt = wt
+    alcohol = log1p(num(p$ALCT1) / 10),
+    mainwt = num(p[[weight_field]])
   )
-  d <- cbind(d, raw[, reps, drop = FALSE])
-  stopifnot(all(complete.cases(d)), all(as.matrix(d[, reps, drop = FALSE]) >= 0))
-  flow <- data.frame(group = group,
-                     stage = c("Cleaned eligible sample", "After pregnancy exclusion", "Complete main-model covariates"),
-                     n = c(length(keep), n_eligible, n_complete))
+  d <- cbind(d, p[, reps, drop = FALSE])
+  stopifnot(all(complete.cases(d)), all(d$mainwt > 0),
+            all(as.matrix(d[, reps, drop = FALSE]) >= 0))
+  flow <- data.frame(group = group, pa_definition = pa_field,
+                     stage = c("Aged 18-65", "Valid measured BMI", "After pregnancy exclusion",
+                               "Complete model covariates"),
+                     n = c(n_age, n_bmi, n_pregnancy, nrow(d)))
   list(data = d, reps = reps, flow = flow)
 }
 
@@ -92,17 +86,21 @@ formula_main <- obese ~ fibre5 * active + age10 + I(age10^2) + female +
   energy_mj + ses + income + year12 + smoking + alcohol
 
 contrast <- function(fit, terms, label) {
-  b <- coef(fit); v <- vcov(fit)
+  b <- coef(fit)
+  v <- vcov(fit)
   c <- setNames(rep(0, length(b)), names(b))
   c[terms] <- 1
-  est <- sum(c * b); se <- sqrt(drop(t(c) %*% v %*% c))
+  est <- sum(c * b)
+  se <- sqrt(drop(t(c) %*% v %*% c))
   data.frame(estimate = label, odds_ratio = exp(est),
              ci_low = exp(est - 1.96 * se), ci_high = exp(est + 1.96 * se),
              p_value = 2 * pnorm(-abs(est / se)))
 }
 
-analyse <- function(group) {
-  z <- prepare(group); d <- z$data; G <- length(z$reps)
+analyse <- function(group, pa_field) {
+  z <- prepare(group, pa_field)
+  d <- z$data
+  G <- length(z$reps)
   design <- svrepdesign(data = d, weights = ~mainwt,
                        repweights = as.matrix(d[, z$reps, drop = FALSE]),
                        type = "JK1", scale = (G - 1) / G,
@@ -110,29 +108,37 @@ analyse <- function(group) {
   fit <- svyglm(formula_main, design = design, family = quasibinomial())
   stopifnot(all(is.finite(coef(fit))))
   rows <- rbind(
-    contrast(fit, "fibre5", "Fibre +5 g/day, did not meet PA guideline"),
-    contrast(fit, c("fibre5", "fibre5:active"), "Fibre +5 g/day, met PA guideline"),
-    contrast(fit, "fibre5:active", "Fibre x PA interaction: ratio of odds ratios"),
-    contrast(fit, "active", "Met vs did not meet PA guideline at 20 g fibre/day")
+    contrast(fit, "fibre5", "Fibre +5 g/day, below activity threshold"),
+    contrast(fit, c("fibre5", "fibre5:active"), "Fibre +5 g/day, met activity threshold"),
+    contrast(fit, "fibre5:active", "Fibre x activity: ratio of odds ratios"),
+    contrast(fit, "active", "Met vs below threshold at 20 g fibre/day")
   )
-  rows$group <- group; rows$n <- nrow(d); rows$obesity_cases <- sum(d$obese)
-  rows <- rows[, c("group", "n", "obesity_cases", "estimate", "odds_ratio", "ci_low", "ci_high", "p_value")]
+  rows$group <- group
+  rows$pa_definition <- pa_field
+  rows$n <- nrow(d)
+  rows$obesity_cases <- sum(d$obese)
+  rows <- rows[, c("group", "pa_definition", "n", "obesity_cases", "estimate",
+                   "odds_ratio", "ci_low", "ci_high", "p_value")]
   pred <- as.numeric(predict(fit, type = "response"))
-  q99 <- as.numeric(quantile(d$fibre, .99))
-  fit99 <- svyglm(formula_main, design = subset(design, fibre <= q99), family = quasibinomial())
-  cut <- contrast(fit99, "fibre5:active", "Interaction excluding top 1% fibre")
+  q99 <- as.numeric(quantile(d$fibre, 0.99))
+  fit99 <- svyglm(formula_main, design = subset(design, fibre <= q99),
+                  family = quasibinomial())
+  cut <- contrast(fit99, "fibre5:active", "Interaction after excluding top 1% fibre")
   fit_quad <- svyglm(update(formula_main, . ~ . + I(fibre5^2) + I(fibre5^2):active),
                      design = design, family = quasibinomial())
   qt <- grep("fibre5\\^2", names(coef(fit_quad)), value = TRUE)
   stopifnot(length(qt) == 2L)
-  qb <- coef(fit_quad)[qt]; qv <- vcov(fit_quad)[qt, qt, drop = FALSE]
+  qb <- coef(fit_quad)[qt]
+  qv <- vcov(fit_quad)[qt, qt, drop = FALSE]
   qstat <- drop(t(qb) %*% solve(qv, qb))
   diagnostics <- data.frame(
-    group = group, n = nrow(d), obesity_cases = sum(d$obese), replicate_weights = G,
+    group = group, pa_definition = pa_field, n = nrow(d),
+    obesity_cases = sum(d$obese), replicate_weights = G,
     weighted_obesity_percent = 100 * weighted.mean(d$obese, d$mainwt),
     weighted_brier = weighted.mean((d$obese - pred)^2, d$mainwt),
     design_matrix_condition_number = kappa(model.matrix(formula_main, d), exact = TRUE),
-    fibre_99th_percentile_g = q99, top_1_percent_excluded_n = sum(d$fibre > q99),
+    fibre_99th_percentile_g = q99,
+    top_1_percent_excluded_n = sum(d$fibre > q99),
     top_1_percent_interaction_or = cut$odds_ratio,
     top_1_percent_interaction_ci_low = cut$ci_low,
     top_1_percent_interaction_ci_high = cut$ci_high,
@@ -140,16 +146,22 @@ analyse <- function(group) {
   )
   by_activity <- do.call(rbind, lapply(0:1, function(a) {
     sub <- d[d$active == a, , drop = FALSE]
-    data.frame(group = group, activity = if (a) "Met 150-minute guideline" else "Did not meet 150-minute guideline",
+    data.frame(group = group, pa_definition = pa_field,
+               activity = if (a) "Met activity threshold" else "Below activity threshold",
                n = nrow(sub), obesity_cases = sum(sub$obese),
                weighted_obesity_percent = 100 * weighted.mean(sub$obese, sub$mainwt))
   }))
-  list(flow = z$flow, model = rows, diagnostics = diagnostics, by_activity = by_activity)
+  list(flow = z$flow, model = rows, diagnostics = diagnostics,
+       by_activity = by_activity)
 }
 
-results <- lapply(c("General NNPAS", "Indigenous NATSINPAS"), analyse)
+groups <- c("General NNPAS", "Indigenous NATSINPAS (non-remote)")
+pa_fields <- c("EXREGUIC", "EXREGUID") # 150 min; 150 min and five sessions
+results <- lapply(groups, function(g) lapply(pa_fields, function(pa) analyse(g, pa)))
+results <- unlist(results, recursive = FALSE)
 for (name in c("flow", "model", "diagnostics", "by_activity")) {
-  write.csv(do.call(rbind, lapply(results, "[[", name)),
-            file.path(out_dir, paste0("rq3-rosetta-", gsub("_", "-", name), ".csv")), row.names = FALSE)
+  write.csv(do.call(rbind, lapply(results, `[[`, name)),
+            file.path(out_dir, paste0("rq3-rosetta-", gsub("_", "-", name), ".csv")),
+            row.names = FALSE)
 }
-cat("Wrote four aggregate tables to", out_dir, "\n")
+cat("Wrote four aggregate Day 1 tables to", out_dir, "\n")
