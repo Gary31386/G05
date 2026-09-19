@@ -2,3 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
+
+# Original ABS person-level microdata stay outside the repository.
+AHSnpa11bp.csv
+inp13bsp.csv
+inp13bhh.csv

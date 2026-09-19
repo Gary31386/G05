@@ -48,6 +48,14 @@ Based on prior literature and biological plausibility, we selected the following
 
 Rosetta (main model):
 
+The [model script](rq3-rosetta-main.R), [methods and formatted results](rq3-rosetta-methods-results.md), and four aggregate CSV tables are in this repository. The primary interaction estimates are shown below; the methods file explains the sample restrictions and survey weights.
+
+| Sample | Complete cases | Adjusted fibre × PA interaction OR (95% CI) | p-value |
+| --- | ---: | ---: | ---: |
+| General NNPAS | 3,960 | 0.97 (0.86–1.09) | 0.559 |
+| Indigenous NATSINPAS | 408 | 0.79 (0.54–1.16) | 0.232 |
+
+Neither analysis shows clear evidence of physical-activity modification. NNPAS is a general-population sample, not a verified non-Indigenous sample; these cleaned files include ages 18–65 and the Indigenous activity sample is non-remote.
 
 Amelie (robustness):
 ```{r}
