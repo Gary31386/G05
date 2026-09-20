@@ -90,7 +90,7 @@ Missingness write up:
 
 
 Gary/Selina (assumptions):
-```{r preparation,include=FALSE}
+```{r preparation,include=FALSE,warning=FALSE}
 library(dplyr)
 library(ggplot2)
 library(caret)
@@ -98,6 +98,7 @@ library(rpart)
 library(rpart.plot)
 library(randomForest)
 library(mgcv)
+library(viridis)
 prepare_model_data <- function(raw_data, population_name) {
   required_variables <- c(
     "age", "sex", "fibre_2day_avg_g", "energy_2day_avg_kj",
@@ -252,7 +253,7 @@ print(glm_interaction_results)
 ```
 
 ## Decision tree fitted
-```{r decision tree,warning=FALSE,echo=FALSE}
+```{r decision tree,warning=FALSE}
 tree_formula <- obesity ~
   fibre5 +
   activity +
@@ -317,6 +318,53 @@ rpart.plot(
   fallen.leaves = TRUE,
   main = "General NNPAS: pruned classification tree"
 )
+
+general_tree_scatter <- ggplot(
+  general_data,
+  aes(
+    x = 20 + 5 * fibre5,
+    y = 45 + 10 * age10,
+    colour = obese
+  )
+) +
+  geom_point(alpha = 0.45, size = 1.6) +
+  scale_colour_viridis(
+    limits = c(0, 1),
+    breaks = c(0, 1),
+    labels = c("Not obese", "Obese"),
+    name = "Observed outcome"
+  ) +
+  geom_vline(xintercept = 20) +
+  annotate(
+    "segment",
+    x = 20,
+    xend = max(20 + 5 * general_data$fibre5),
+    y = 45,
+    yend = 45
+  ) +
+  annotate(
+    "segment",
+    x = 20,
+    xend = max(20 + 5 * general_data$fibre5),
+    y = 65,
+    yend = 65
+  ) +
+  annotate(
+    "segment",
+    x = 30,
+    xend = 30,
+    y = 45,
+    yend = 65
+  ) +
+  facet_wrap(~activity) +
+  labs(
+    title = "General NNPAS: fibre and age by obesity status",
+    x = "Two-day mean fibre intake (g/day)",
+    y = "Age (years)"
+  ) +
+  theme_minimal()
+
+print(general_tree_scatter)
 
 indigenous_tree <- fit_pruned_tree(indigenous_data)
 
