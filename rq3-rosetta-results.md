@@ -1,6 +1,8 @@
-# Rosetta — RQ3 methods and results
+# Rosetta — RQ3 current model, results, and handoff
 
-Updated 23 September 2026. This file is the handoff for the RQ3 statistical contribution. The primary analysis uses the two-day mean dietary intake specified in the group proposal and confirmed with the tutor. Day 1 analyses are retained as sensitivity checks.
+Updated 24 September 2026. This is the single current explanation and handoff for the RQ3 statistical contribution. The primary analysis uses the two-day mean dietary intake specified in the group proposal and confirmed with the tutor. Day 1 analyses are retained as sensitivity checks.
+
+Only three current analysis files are needed: [rq3-rosetta-model.R](rq3-rosetta-model.R) contains the primary and sensitivity models, [rq3-rosetta-results.csv](rq3-rosetta-results.csv) contains their aggregate output, and this file explains what to report. The two cleaned workbooks are inputs, not alternative model versions.
 
 ## Research question and scope
 
@@ -70,4 +72,6 @@ The upper-tail exclusion and quadratic screen do not alter the main interaction 
 
 ## Reproduce and data handling
 
-Use an R environment with `survey` and `readxl`. Keep the original authorised ABS Basic CURF files outside the repository. Set `RQ3_RAW_DATA_DIR` to the folder containing `AHSnpa11bp.csv`, `inp13bsp.csv` and `inp13bhh.csv`. Run `Rscript rq3-rosetta-main.R`, then `rq3-rosetta-day1-in-day2-sensitivity.R`, `rq3-rosetta-day1-sensitivity.R` and `rq3-rosetta-coreconf-sensitivity.R`. `RQ3_OUTPUT_DIR` can redirect outputs. All scripts write aggregate tables only. The two pre-existing cleaned workbooks in this repository contain respondent-level records; keep repository access restricted to authorised course collaborators and do not export those rows in the knitted report.
+Use an R environment with `survey` and `readxl`. Keep the original authorised ABS Basic CURF files outside the repository. Set `RQ3_RAW_DATA_DIR` to the folder containing `AHSnpa11bp.csv`, `inp13bsp.csv` and `inp13bhh.csv`, then run `Rscript rq3-rosetta-model.R`. `RQ3_OUTPUT_DIR` can redirect the single aggregate output table. The two cleaned workbooks in this repository contain respondent-level records; keep repository access restricted to authorised course collaborators and do not export those rows in the knitted report.
+
+The model file begins with the research question, primary specification, weights, all retained sensitivity analyses, inputs, output and run command. Do not restore or cite the retired split scripts or their separate CSV tables.
