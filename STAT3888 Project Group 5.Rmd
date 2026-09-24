@@ -779,7 +779,7 @@ run_ten_fold_cv <- function(data, population_name, seed) {
     )
 
     model_probabilities <- list(
-      GLM = glm_probability,
+      `Weighted GLM benchmark` = glm_probability,
       `Decision tree` = tree_probability,
       `Random forest` = rf_probability,
       GAM = gam_probability
@@ -890,4 +890,4 @@ print(cv_comparison_plot)
 Both outputs illustrates the result of comparing different models using 10-fold cross validation. It measures the ability of predicting obese between upon models. According to the result, decision tree has the least predicting performance among all models. GLM and GAM had the strongest and almost identical predictive performance in the General NNPAS sample. In the indigenous model, Random forest has the best performance, with the GAM performing similarly. However, predictive performance was only moderate and varied considerably across folds since all models have AUC less than 0.65.
 
 ## conclusion
-In conclusion, GLM is is broadly adequate, particularly in the General NNPAS sample. Flexible models do not provide a meaningful improvement in that sample. In the Indigenous NNPAS sample, GAM and random forest suggest that some nonlinear or more complex structure may be present, but the improvement over the GLM is modest and uncertain. The GLM should therefore remain the primary inferential model, while GAM and random forest should be presented as sensitivity checks.
+In conclusion, GLM is is broadly adequate, particularly in the General NNPAS sample. Flexible models do not provide a meaningful improvement in that sample. In the Indigenous NATSINPAS sample, GAM and random forest suggest that some nonlinear or more complex structure may be present, but the improvement over the GLM is modest and uncertain. The GLM should therefore remain the primary inferential model, while GAM and random forest should be presented as sensitivity checks.
