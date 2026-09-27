@@ -1,0 +1,1027 @@
+---
+title: "RQ3 Rebuilt Statistical Analysis"
+subtitle: "Continuous BMI and waist circumference as primary adiposity outcomes"
+date: "27 September 2026"
+output:
+  html_document:
+    self_contained: true
+    toc: true
+    toc_float: true
+    code_folding: hide
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+options(stringsAsFactors = FALSE, scipen = 999)
+.libPaths(c(file.path(getwd(), "R-library"), .libPaths()))
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(splines)
+library(mgcv)
+library(rpart)
+library(nnet)
+library(MASS)
+library(knitr)
+
+has_rf <- requireNamespace("randomForest", quietly = TRUE)
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  cache = TRUE,
+  fig.width = 10,
+  fig.height = 5.5,
+  dpi = 150,
+  out.width = "100%"
+)
+
+theme_set(
+  theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(colour = "#475569"),
+      panel.grid.minor = element_blank(),
+      legend.position = "top"
+    )
+)
+
+blue <- "#2563EB"
+orange <- "#D97706"
+green <- "#15803D"
+purple <- "#7C3AED"
+grey <- "#64748B"
+fibre_reference_g <- 23
+
+fmt_p <- function(x) {
+  ifelse(is.na(x), "NA", ifelse(x < 0.001, "<0.001", sprintf("%.3f", x)))
+}
+
+weighted_mean <- function(x, w) sum(x * w, na.rm = TRUE) / sum(w[!is.na(x)])
+
+weighted_sd <- function(x, w) {
+  m <- weighted_mean(x, w)
+  sqrt(weighted_mean((x - m)^2, w))
+}
+
+weighted_rmse <- function(y, pred, w) sqrt(weighted_mean((y - pred)^2, w))
+weighted_mae <- function(y, pred, w) weighted_mean(abs(y - pred), w)
+weighted_r2 <- function(y, pred, w) {
+  1 - sum(w * (y - pred)^2) / sum(w * (y - weighted_mean(y, w))^2)
+}
+
+jackknife_variance <- function(beta, replicate_beta) {
+  r <- ncol(replicate_beta)
+  delta <- sweep(replicate_beta, 1, beta, "-")
+  (r - 1) / r * tcrossprod(delta)
+}
+
+fit_replicate_lm <- function(data, formula, replicate_names) {
+  fit_once <- function(w) {
+    fit_data <- data
+    fit_data$.analysis_weight <- w / mean(w)
+    lm(formula, data = fit_data, weights = .analysis_weight)
+  }
+
+  full_fit <- fit_once(data$main_weight)
+  beta <- coef(full_fit)
+  rep_beta <- sapply(replicate_names, function(weight_name) {
+    b <- coef(fit_once(data[[weight_name]]))
+    aligned <- rep(NA_real_, length(beta))
+    names(aligned) <- names(beta)
+    aligned[names(b)] <- b
+    aligned
+  })
+
+  if (anyNA(rep_beta)) stop("A replicate-weight linear fit dropped a coefficient.")
+  variance <- jackknife_variance(beta, rep_beta)
+
+  list(
+    formula = formula,
+    fit = full_fit,
+    beta = beta,
+    replicate_beta = rep_beta,
+    variance = variance,
+    se = sqrt(diag(variance)),
+    data = data,
+    replicate_names = replicate_names
+  )
+}
+
+fit_replicate_glm <- function(data, formula, replicate_names) {
+  fit_once <- function(w) {
+    fit_data <- data
+    fit_data$.analysis_weight <- w / mean(w)
+    suppressWarnings(glm(
+      formula, data = fit_data, family = binomial(),
+      weights = .analysis_weight
+    ))
+  }
+
+  full_fit <- fit_once(data$main_weight)
+  beta <- coef(full_fit)
+  rep_beta <- sapply(replicate_names, function(weight_name) {
+    b <- coef(fit_once(data[[weight_name]]))
+    aligned <- rep(NA_real_, length(beta))
+    names(aligned) <- names(beta)
+    aligned[names(b)] <- b
+    aligned
+  })
+
+  if (anyNA(rep_beta)) stop("A replicate-weight logistic fit dropped a coefficient.")
+  variance <- jackknife_variance(beta, rep_beta)
+
+  list(
+    formula = formula,
+    fit = full_fit,
+    beta = beta,
+    replicate_beta = rep_beta,
+    variance = variance,
+    se = sqrt(diag(variance)),
+    data = data,
+    replicate_names = replicate_names
+  )
+}
+
+continuous_table <- function(model) {
+  data.frame(
+    term = names(model$beta),
+    estimate = unname(model$beta),
+    se = unname(model$se),
+    ci_low = unname(model$beta - 1.96 * model$se),
+    ci_high = unname(model$beta + 1.96 * model$se),
+    p_value = 2 * pnorm(abs(model$beta / model$se), lower.tail = FALSE),
+    row.names = NULL
+  )
+}
+
+logistic_table <- function(model) {
+  tab <- continuous_table(model)
+  transform(
+    tab,
+    odds_ratio = exp(estimate),
+    or_low = exp(ci_low),
+    or_high = exp(ci_high)
+  )
+}
+
+linear_combination <- function(model, contrast, label) {
+  contrast <- contrast[names(model$beta)]
+  estimate <- sum(contrast * model$beta)
+  variance <- as.numeric(t(contrast) %*% model$variance %*% contrast)
+  se <- sqrt(variance)
+  data.frame(
+    effect = label,
+    estimate = estimate,
+    ci_low = estimate - 1.96 * se,
+    ci_high = estimate + 1.96 * se,
+    p_value = 2 * pnorm(abs(estimate / se), lower.tail = FALSE)
+  )
+}
+
+standardised_predictions_lm <- function(model, fibre_values, pa_values = c("Not met", "Met")) {
+  data <- model$data
+  output <- list()
+  k <- 1
+
+  for (f in fibre_values) {
+    for (p in pa_values) {
+      newdata <- data
+      newdata$fibre_5g_c <- (f - fibre_reference_g) / 5
+      newdata$pa <- factor(p, levels = levels(data$pa))
+      x <- model.matrix(delete.response(terms(model$fit)), newdata)
+      mean_x <- colSums(x * data$main_weight) / sum(data$main_weight)
+      estimate <- sum(mean_x * model$beta)
+      se <- sqrt(as.numeric(t(mean_x) %*% model$variance %*% mean_x))
+      output[[k]] <- data.frame(
+        fibre_g = f,
+        pa = p,
+        estimate = estimate,
+        ci_low = estimate - 1.96 * se,
+        ci_high = estimate + 1.96 * se
+      )
+      k <- k + 1
+    }
+  }
+
+  bind_rows(output) %>%
+    mutate(pa = factor(pa, levels = pa_values))
+}
+
+weighted_quantile <- function(x, w, probs) {
+  keep <- is.finite(x) & is.finite(w) & w > 0
+  x <- x[keep]
+  w <- w[keep]
+  ord <- order(x)
+  x <- x[ord]
+  cw <- cumsum(w[ord]) / sum(w)
+  sapply(probs, function(p) x[which(cw >= p)[1]])
+}
+```
+
+<style>
+body { max-width: 1200px; }
+.decision { border-left: 6px solid #15803D; background: #F0FDF4; padding: 1em 1.2em; margin: 1em 0; }
+.warning { border-left: 6px solid #D97706; background: #FFFBEB; padding: 1em 1.2em; margin: 1em 0; }
+.slide { border-left: 5px solid #2563EB; background: #F8FAFC; padding: .8em 1em; margin: 1em 0; }
+.nutm { border-left-color: #D97706; }
+.result { border-left-color: #15803D; }
+</style>
+
+# Executive decision
+
+<div class="decision">
+**Recommended primary strategy:** analyse measured BMI and measured waist circumference as continuous adiposity outcomes in separate survey-weighted linear interaction models. This follows the Project 1 advice to avoid dichotomising BMI and recognises waist circumference as a complementary measure of central adiposity. BMI-defined obesity and sex-specific elevated waist circumference are retained as clinically interpretable sensitivity outcomes.
+</div>
+
+The revised statistical question is:
+
+> **Among Australian adults aged 18–65, does physical activity modify the association between two-day mean fibre intake and adiposity, measured using BMI and waist circumference, in the 2011–13 Australian Health Survey?**
+
+This is a deliberate change from the earlier obesity-only analysis. It retains the same exposure → outcome → modifier framing, but avoids discarding information at the BMI 30 kg/m² threshold.
+
+# Why the old analysis changed
+
+The previous draft used binary BMI-defined obesity as the primary outcome and continuous BMI as a sensitivity analysis. The supplied Project 1 tips explicitly advise considering BMI continuously because dichotomisation loses signal. They also identify waist circumference as a potentially more direct marker of central adiposity than BMI. Therefore:
+
+1. **Primary outcome 1:** BMI (kg/m²), continuous.
+2. **Primary outcome 2:** waist circumference (cm), continuous and complementary.
+3. **Sensitivity outcomes:** BMI-defined obesity (BMI at least 30 kg/m²) and sex-specific elevated waist circumference.
+4. The two primary interaction p-values are interpreted together and Holm-adjusted to limit outcome-selection bias.
+
+# Data preparation
+
+```{r prepare-general}
+general_raw <- read.csv("dataset/AHSnpa11bp.csv", check.names = FALSE)
+
+general_all <- general_raw %>%
+  mutate(
+    fibre_avg_g = (FIBRET1 + FIBRET2) / 2,
+    energy_avg_kj = (ENERGYT1 + ENERGYT2) / 2,
+    alcohol_avg_g = (ALCT1 + ALCT2) / 2,
+    bmi = BMISC,
+    waist_cm = PHDCMWBC,
+    obese = as.integer(bmi >= 30),
+    high_waist = ifelse(
+      is.finite(waist_cm),
+      ifelse(SEX == 1, as.integer(waist_cm >= 94), as.integer(waist_cm >= 80)),
+      NA_integer_
+    ),
+    fibre_5g_c = (fibre_avg_g - fibre_reference_g) / 5,
+    pa = factor(ifelse(EXREGUIC == 1, "Met", "Not met"),
+                levels = c("Not met", "Met")),
+    sex = factor(ifelse(SEX == 1, "Men", "Women"),
+                 levels = c("Men", "Women")),
+    age = AGEC,
+    energy_1000 = energy_avg_kj / 1000,
+    alcohol_10 = alcohol_avg_g / 10,
+    smoking = factor(SMKSTAT),
+    income_decile = as.numeric(INCDEC),
+    year12 = as.numeric(HYSCHCBC == 1),
+    seifa = as.numeric(SF2SA1QN),
+    main_weight = NPAD2WGT
+  )
+
+eligible_core <- with(general_all,
+  age >= 18 & age <= 65 &
+    NUMRECAL == 2 &
+    is.finite(FIBRET1) & FIBRET1 >= 0 &
+    is.finite(FIBRET2) & FIBRET2 >= 0 &
+    is.finite(bmi) & bmi >= 8 & bmi <= 80 &
+    is.finite(waist_cm) & waist_cm >= 40 & waist_cm <= 200 &
+    EXREGUIC %in% c(1, 2) & SEX %in% c(1, 2) &
+    is.finite(energy_avg_kj) & energy_avg_kj > 0 &
+    is.finite(alcohol_avg_g) & alcohol_avg_g >= 0 &
+    SMKSTAT %in% 1:5 &
+    is.finite(main_weight) & main_weight > 0
+)
+
+primary_complete <- with(general_all,
+  eligible_core &
+    INCDEC %in% 1:10 &
+    HYSCHCBC %in% 1:5
+)
+
+seifa_complete <- with(general_all,
+  eligible_core & SF2SA1QN %in% 1:5
+)
+
+general_primary <- droplevels(general_all[primary_complete, ])
+general_seifa <- droplevels(general_all[seifa_complete, ])
+
+general_repweights <- sprintf("W2M01%02d", 1:60)
+stopifnot(all(general_repweights %in% names(general_primary)))
+
+weighted_fibre_mean <- weighted.mean(
+  general_primary$fibre_avg_g,
+  general_primary$main_weight
+)
+
+flow <- data.frame(
+  stage = factor(
+    c(
+      "Source records", "Age 18–65", "Two recalls",
+      "Valid fibre, BMI and waist", "Known PA and core covariates",
+      "Primary complete-case sample"
+    ),
+    levels = rev(c(
+      "Source records", "Age 18–65", "Two recalls",
+      "Valid fibre, BMI and waist", "Known PA and core covariates",
+      "Primary complete-case sample"
+    ))
+  ),
+  n = c(
+    nrow(general_all),
+    sum(general_all$AGEC >= 18 & general_all$AGEC <= 65, na.rm = TRUE),
+    sum(general_all$AGEC >= 18 & general_all$AGEC <= 65 &
+          general_all$NUMRECAL == 2, na.rm = TRUE),
+    sum(with(general_all,
+      age >= 18 & age <= 65 & NUMRECAL == 2 &
+        is.finite(FIBRET1) & FIBRET1 >= 0 &
+        is.finite(FIBRET2) & FIBRET2 >= 0 &
+        is.finite(bmi) & bmi >= 8 & bmi <= 80 &
+        is.finite(waist_cm) & waist_cm >= 40 & waist_cm <= 200
+    ), na.rm = TRUE),
+    sum(eligible_core, na.rm = TRUE),
+    nrow(general_primary)
+  )
+)
+
+pregnancy_variable_available <- any(grepl("PREG|GEST", names(general_raw), ignore.case = TRUE))
+```
+
+The primary analysis requires valid values for both primary outcomes so that BMI and waist models use exactly the same participants. Individual income and education are used in the primary socioeconomic adjustment, following the Project 1 suggestion that they more directly represent individual socioeconomic position than area-level SEIFA.
+
+<div class="warning">
+The supplied general-population data extract does not contain an identifiable pregnancy variable (`r pregnancy_variable_available`). Pregnant participants therefore could not be excluded directly. This must be reported as a data limitation rather than silently assumed away.
+</div>
+
+```{r sample-flow, echo=FALSE}
+ggplot(flow, aes(x = n, y = stage)) +
+  geom_col(fill = blue, width = 0.68) +
+  geom_text(aes(label = format(n, big.mark = ",")), hjust = -0.12, size = 4) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.14))) +
+  labs(
+    title = "Common sample for the two primary adiposity outcomes",
+    subtitle = "Two dietary recalls, measured BMI and measured waist circumference are required",
+    x = "Participants", y = NULL
+  )
+```
+
+```{r descriptive-table, echo=FALSE}
+descriptive_summary <- general_primary %>%
+  group_by(pa) %>%
+  summarise(
+    `Unweighted n` = n(),
+    `BMI, weighted mean` = weighted.mean(bmi, main_weight),
+    `Waist (cm), weighted mean` = weighted.mean(waist_cm, main_weight),
+    `Fibre (g/day), weighted mean` = weighted.mean(fibre_avg_g, main_weight),
+    `Age, weighted mean` = weighted.mean(age, main_weight),
+    `Women, weighted %` = 100 * weighted.mean(sex == "Women", main_weight),
+    .groups = "drop"
+  )
+
+descriptive_summary %>%
+  mutate(across(where(is.numeric), ~round(.x, 1))) %>%
+  kable(caption = "Survey-weighted descriptive summary by physical activity status")
+```
+
+# Causal and modelling strategy
+
+The exposure is two-day mean fibre intake. The effect modifier is whether the participant met the 150-minute physical activity guideline. The outcomes are BMI and waist circumference, analysed separately.
+
+The primary adjustment set was selected before examining p-values:
+
+- age, modelled flexibly with a restricted cubic spline basis;
+- sex;
+- total energy intake;
+- household income decile;
+- Year 12 completion;
+- smoking status;
+- alcohol intake.
+
+Physical activity is not treated as an ordinary confounder because it is the prespecified effect modifier and therefore appears as both a main effect and an interaction with fibre. Area-level SEIFA replaces income and education in a sensitivity model. Current dieting, chronic disease and medication use are not automatically adjusted because obesity can influence diagnosis, medication and current dietary behaviour, making their temporal position ambiguous. Broader dietary pattern remains unmeasured.
+
+## Primary continuous interaction models
+
+For outcome \(Y\), where \(Y\) is BMI or waist circumference:
+
+\[
+Y = \beta_0 + \beta_1F_c + \beta_2PA + \beta_3(F_c \times PA)
++ \boldsymbol{\gamma}^{T}\boldsymbol{C} + \epsilon,
+\]
+
+where
+
+\[
+F_c = \frac{\text{two-day mean fibre (g/day)} - 23}{5}.
+\]
+
+Therefore:
+
+- \(\beta_1\) is the mean outcome difference per 5 g/day more fibre among participants not meeting the PA guideline;
+- \(\beta_2\) compares PA groups at 23 g/day fibre;
+- \(\beta_3\) is the formal effect-modification test: the difference between the two fibre slopes.
+
+Day 2 person weights and all 60 Day 2 replicate weights are used. Natural outcome units are primary for interpretation. Standardised outcomes are reported only to compare relative effect sizes across BMI and waist circumference.
+
+```{r fit-primary-models}
+primary_covariates <- "ns(age, df = 3) + sex + energy_1000 + income_decile + year12 + smoking + alcohol_10"
+
+bmi_formula <- as.formula(paste(
+  "bmi ~ fibre_5g_c * pa +", primary_covariates
+))
+
+waist_formula <- as.formula(paste(
+  "waist_cm ~ fibre_5g_c * pa +", primary_covariates
+))
+
+bmi_model <- fit_replicate_lm(general_primary, bmi_formula, general_repweights)
+waist_model <- fit_replicate_lm(general_primary, waist_formula, general_repweights)
+
+bmi_tab <- continuous_table(bmi_model)
+waist_tab <- continuous_table(waist_model)
+
+extract_primary_effects <- function(model, outcome_label, unit_label) {
+  p <- length(model$beta)
+  nms <- names(model$beta)
+  c_not <- setNames(rep(0, p), nms)
+  c_not["fibre_5g_c"] <- 1
+  c_met <- c_not
+  c_met["fibre_5g_c:paMet"] <- 1
+  c_pa <- setNames(rep(0, p), nms)
+  c_pa["paMet"] <- 1
+  c_int <- setNames(rep(0, p), nms)
+  c_int["fibre_5g_c:paMet"] <- 1
+
+  bind_rows(
+    linear_combination(model, c_not, "Fibre slope: PA guideline not met"),
+    linear_combination(model, c_met, "Fibre slope: PA guideline met"),
+    linear_combination(model, c_pa, "PA difference at 23 g/day fibre"),
+    linear_combination(model, c_int, "Fibre × PA interaction")
+  ) %>%
+    mutate(outcome = outcome_label, unit = unit_label)
+}
+
+primary_effects <- bind_rows(
+  extract_primary_effects(bmi_model, "BMI", "kg/m²"),
+  extract_primary_effects(waist_model, "Waist circumference", "cm")
+)
+
+interaction_results <- primary_effects %>%
+  filter(effect == "Fibre × PA interaction") %>%
+  mutate(holm_p = p.adjust(p_value, method = "holm"))
+```
+
+# Primary results
+
+## Interaction estimates in natural units
+
+```{r primary-results-table, echo=FALSE}
+primary_effects %>%
+  mutate(
+    Estimate = sprintf("%.2f", estimate),
+    `95% CI` = sprintf("%.2f to %.2f", ci_low, ci_high),
+    `p-value` = fmt_p(p_value)
+  ) %>%
+  dplyr::select(Outcome = outcome, Effect = effect, Estimate, `95% CI`, `p-value`, Unit = unit) %>%
+  kable(caption = "Primary survey-weighted continuous interaction models")
+```
+
+```{r holm-table, echo=FALSE}
+interaction_results %>%
+  transmute(
+    Outcome = outcome,
+    `Interaction estimate` = sprintf("%.2f %s per 5 g/day", estimate, unit),
+    `95% CI` = sprintf("%.2f to %.2f", ci_low, ci_high),
+    `Raw p-value` = fmt_p(p_value),
+    `Holm-adjusted p-value` = fmt_p(holm_p)
+  ) %>%
+  kable(caption = "Primary interaction tests with multiplicity adjustment across the two outcomes")
+```
+
+The interaction estimate is a difference in slopes, not the fibre slope itself. A value near zero means the fibre association is similar in the two PA groups. Statistical evidence for effect modification requires the interaction confidence interval to exclude zero; the Holm-adjusted p-values protect against selectively highlighting whichever of BMI or waist happens to be more favourable.
+
+## Adjusted BMI and waist curves
+
+```{r primary-predictions}
+fibre_limits <- weighted_quantile(
+  general_primary$fibre_avg_g,
+  general_primary$main_weight,
+  c(0.05, 0.95)
+)
+fibre_grid <- seq(fibre_limits[1], fibre_limits[2], length.out = 80)
+
+bmi_predictions <- standardised_predictions_lm(bmi_model, fibre_grid) %>%
+  mutate(outcome = "Adjusted mean BMI", unit = "kg/m²")
+
+waist_predictions <- standardised_predictions_lm(waist_model, fibre_grid) %>%
+  mutate(outcome = "Adjusted mean waist circumference", unit = "cm")
+
+prediction_data <- bind_rows(bmi_predictions, waist_predictions)
+```
+
+```{r primary-prediction-plot, echo=FALSE, fig.height=5.4}
+ggplot(prediction_data, aes(x = fibre_g, y = estimate, colour = pa, fill = pa)) +
+  geom_ribbon(aes(ymin = ci_low, ymax = ci_high), alpha = 0.13, colour = NA) +
+  geom_line(linewidth = 1.15) +
+  facet_wrap(~ outcome, scales = "free_y") +
+  scale_colour_manual(values = c("Not met" = orange, "Met" = blue)) +
+  scale_fill_manual(values = c("Not met" = orange, "Met" = blue)) +
+  labs(
+    title = "Physical activity did not clearly change the fibre–adiposity slopes",
+    subtitle = "Survey-standardised predictions from the two primary continuous interaction models",
+    x = "Two-day mean fibre intake (g/day)",
+    y = "Adjusted mean outcome",
+    colour = "Physical activity guideline",
+    fill = "Physical activity guideline"
+  )
+```
+
+The plot is the preferred main result because it communicates both the fibre slopes and the PA-group contrast without showing raw, overplotted observations. The confidence ribbons show uncertainty in each standardised mean curve; the formal interaction test remains the coefficient and confidence interval reported above.
+
+## Compact interaction plot
+
+```{r interaction-forest, echo=FALSE, fig.height=3.7}
+ggplot(interaction_results, aes(x = estimate, y = outcome, colour = outcome)) +
+  geom_vline(xintercept = 0, linetype = 2, colour = "#94A3B8") +
+  geom_errorbarh(aes(xmin = ci_low, xmax = ci_high), height = 0.15, linewidth = .8) +
+  geom_point(size = 3.5) +
+  scale_colour_manual(values = c("BMI" = purple, "Waist circumference" = green)) +
+  labs(
+    title = "Fibre × physical activity interaction estimates",
+    subtitle = "Difference in the fibre slope for PA met versus not met, per 5 g/day fibre",
+    x = "Difference in slope (natural outcome units)",
+    y = NULL,
+    colour = NULL
+  ) +
+  theme(legend.position = "none")
+```
+
+# Standardised effect comparison
+
+```{r standardised-models}
+general_primary <- general_primary %>%
+  mutate(
+    bmi_z = (bmi - weighted_mean(bmi, main_weight)) / weighted_sd(bmi, main_weight),
+    waist_z = (waist_cm - weighted_mean(waist_cm, main_weight)) / weighted_sd(waist_cm, main_weight)
+  )
+
+bmi_z_model <- fit_replicate_lm(
+  general_primary,
+  as.formula(paste("bmi_z ~ fibre_5g_c * pa +", primary_covariates)),
+  general_repweights
+)
+
+waist_z_model <- fit_replicate_lm(
+  general_primary,
+  as.formula(paste("waist_z ~ fibre_5g_c * pa +", primary_covariates)),
+  general_repweights
+)
+
+standardised_interactions <- bind_rows(
+  continuous_table(bmi_z_model) %>%
+    filter(term == "fibre_5g_c:paMet") %>% mutate(outcome = "BMI"),
+  continuous_table(waist_z_model) %>%
+    filter(term == "fibre_5g_c:paMet") %>% mutate(outcome = "Waist circumference")
+)
+```
+
+```{r standardised-table, echo=FALSE}
+standardised_interactions %>%
+  transmute(
+    Outcome = outcome,
+    `Standardised interaction` = sprintf("%.3f SD", estimate),
+    `95% CI` = sprintf("%.3f to %.3f", ci_low, ci_high),
+    `p-value` = fmt_p(p_value)
+  ) %>%
+  kable(caption = "Standardised interaction estimates for comparing outcome scales")
+```
+
+# Assumptions and robustness
+
+## Linearity, residuals and influence
+
+Linear regression does not require BMI or waist circumference themselves to be normally distributed. The relevant assumptions concern the conditional mean structure, residual form, influential observations and the adequacy of the variance estimates. Replicate-weight standard errors account for the complex sampling design; the following graphics examine model form rather than replacing survey inference.
+
+```{r residual-diagnostics, echo=FALSE, fig.height=5.3}
+diagnostic_data <- bind_rows(
+  data.frame(
+    fitted = fitted(bmi_model$fit),
+    residual = residuals(bmi_model$fit),
+    outcome = "BMI"
+  ),
+  data.frame(
+    fitted = fitted(waist_model$fit),
+    residual = residuals(waist_model$fit),
+    outcome = "Waist circumference"
+  )
+)
+
+ggplot(diagnostic_data, aes(x = fitted, y = residual)) +
+  geom_hline(yintercept = 0, colour = "#94A3B8") +
+  geom_point(alpha = 0.12, size = .8, colour = grey) +
+  geom_smooth(method = "loess", se = FALSE, colour = orange, linewidth = 1) +
+  facet_wrap(~ outcome, scales = "free") +
+  labs(
+    title = "Residual checks for the primary continuous models",
+    subtitle = "A nearly horizontal smooth supports the conditional mean specification",
+    x = "Fitted value", y = "Residual"
+  )
+```
+
+## Prespecified sensitivity analyses
+
+The following checks target distinct concerns rather than searching for statistical significance:
+
+1. use area-level SEIFA instead of individual income and education;
+2. trim the outer 1% of fibre, energy, alcohol and each outcome;
+3. remove the 1% most influential observations according to Cook's distance;
+4. use robust M-estimation as an exploratory check;
+5. analyse clinically defined binary obesity and elevated waist circumference.
+
+```{r sensitivity-models}
+seifa_covariates <- "ns(age, df = 3) + sex + energy_1000 + seifa + smoking + alcohol_10"
+
+bmi_seifa <- fit_replicate_lm(
+  general_seifa,
+  as.formula(paste("bmi ~ fibre_5g_c * pa +", seifa_covariates)),
+  general_repweights
+)
+waist_seifa <- fit_replicate_lm(
+  general_seifa,
+  as.formula(paste("waist_cm ~ fibre_5g_c * pa +", seifa_covariates)),
+  general_repweights
+)
+
+trim_vars <- c("fibre_avg_g", "energy_avg_kj", "alcohol_avg_g", "bmi", "waist_cm")
+trim_bounds <- lapply(trim_vars, function(v) {
+  quantile(general_primary[[v]], c(.01, .99), na.rm = TRUE)
+})
+names(trim_bounds) <- trim_vars
+
+trimmed <- general_primary
+for (v in trim_vars) {
+  trimmed <- trimmed[
+    trimmed[[v]] >= trim_bounds[[v]][1] & trimmed[[v]] <= trim_bounds[[v]][2],
+  ]
+}
+trimmed <- droplevels(trimmed)
+
+bmi_trim <- fit_replicate_lm(trimmed, bmi_formula, general_repweights)
+waist_trim <- fit_replicate_lm(trimmed, waist_formula, general_repweights)
+
+bmi_cook_cut <- quantile(cooks.distance(bmi_model$fit), .99, na.rm = TRUE)
+waist_cook_cut <- quantile(cooks.distance(waist_model$fit), .99, na.rm = TRUE)
+bmi_low_influence <- general_primary[cooks.distance(bmi_model$fit) <= bmi_cook_cut, ]
+waist_low_influence <- general_primary[cooks.distance(waist_model$fit) <= waist_cook_cut, ]
+
+bmi_influence <- fit_replicate_lm(bmi_low_influence, bmi_formula, general_repweights)
+waist_influence <- fit_replicate_lm(waist_low_influence, waist_formula, general_repweights)
+
+fit_robust <- function(formula, data) {
+  fit_data <- data
+  fit_data$.analysis_weight <- fit_data$main_weight / mean(fit_data$main_weight)
+  MASS::rlm(formula, data = fit_data, weights = .analysis_weight, maxit = 100)
+}
+
+bmi_robust <- fit_robust(bmi_formula, general_primary)
+waist_robust <- fit_robust(waist_formula, general_primary)
+
+extract_interaction <- function(model, label, outcome) {
+  row <- continuous_table(model) %>% filter(term == "fibre_5g_c:paMet")
+  data.frame(
+    analysis = label, outcome = outcome, n = nrow(model$data),
+    estimate = row$estimate, ci_low = row$ci_low,
+    ci_high = row$ci_high, p_value = row$p_value
+  )
+}
+
+robust_row <- function(fit, label, outcome, n) {
+  tab <- summary(fit)$coefficients
+  estimate <- tab["fibre_5g_c:paMet", "Value"]
+  se <- tab["fibre_5g_c:paMet", "Std. Error"]
+  data.frame(
+    analysis = label, outcome = outcome, n = n,
+    estimate = estimate, ci_low = estimate - 1.96 * se,
+    ci_high = estimate + 1.96 * se,
+    p_value = 2 * pnorm(abs(estimate / se), lower.tail = FALSE)
+  )
+}
+
+continuous_sensitivity <- bind_rows(
+  extract_interaction(bmi_model, "Primary individual SES", "BMI"),
+  extract_interaction(waist_model, "Primary individual SES", "Waist circumference"),
+  extract_interaction(bmi_seifa, "Replace income/education with SEIFA", "BMI"),
+  extract_interaction(waist_seifa, "Replace income/education with SEIFA", "Waist circumference"),
+  extract_interaction(bmi_trim, "Trim outer 1%", "BMI"),
+  extract_interaction(waist_trim, "Trim outer 1%", "Waist circumference"),
+  extract_interaction(bmi_influence, "Remove top 1% Cook's distance", "BMI"),
+  extract_interaction(waist_influence, "Remove top 1% Cook's distance", "Waist circumference"),
+  robust_row(bmi_robust, "Robust M-estimation", "BMI", nrow(general_primary)),
+  robust_row(waist_robust, "Robust M-estimation", "Waist circumference", nrow(general_primary))
+)
+
+obesity_formula <- as.formula(paste(
+  "obese ~ fibre_5g_c * pa +", primary_covariates
+))
+high_waist_formula <- as.formula(paste(
+  "high_waist ~ fibre_5g_c * pa +", primary_covariates
+))
+
+obesity_model <- fit_replicate_glm(general_primary, obesity_formula, general_repweights)
+high_waist_model <- fit_replicate_glm(general_primary, high_waist_formula, general_repweights)
+
+binary_sensitivity <- bind_rows(
+  logistic_table(obesity_model) %>%
+    filter(term == "fibre_5g_c:paMet") %>% mutate(outcome = "BMI-defined obesity"),
+  logistic_table(high_waist_model) %>%
+    filter(term == "fibre_5g_c:paMet") %>% mutate(outcome = "Elevated waist circumference")
+)
+```
+
+```{r sensitivity-forest, echo=FALSE, fig.height=6.2}
+ggplot(
+  continuous_sensitivity,
+  aes(x = estimate, y = analysis, colour = outcome)
+) +
+  geom_vline(xintercept = 0, linetype = 2, colour = "#94A3B8") +
+  geom_errorbarh(aes(xmin = ci_low, xmax = ci_high), height = .13,
+                 position = position_dodge(width = .45)) +
+  geom_point(size = 2.8, position = position_dodge(width = .45)) +
+  facet_wrap(~ outcome, scales = "free_x") +
+  scale_colour_manual(values = c("BMI" = purple, "Waist circumference" = green)) +
+  labs(
+    title = "Continuous-outcome interaction estimates across robustness checks",
+    subtitle = "Each estimate is the difference in fibre slope for PA met versus not met",
+    x = "Interaction estimate per 5 g/day fibre",
+    y = NULL,
+    colour = NULL
+  ) +
+  theme(legend.position = "none")
+```
+
+```{r binary-sensitivity-table, echo=FALSE}
+binary_sensitivity %>%
+  transmute(
+    Outcome = outcome,
+    `Interaction odds ratio` = sprintf("%.2f", odds_ratio),
+    `95% CI` = sprintf("%.2f to %.2f", or_low, or_high),
+    `p-value` = fmt_p(p_value)
+  ) %>%
+  kable(caption = "Binary clinical-threshold sensitivity analyses")
+```
+
+The binary models answer a different question from the continuous models: they estimate whether PA changes the fibre association with the odds of crossing a threshold, rather than whether PA changes the average BMI or waist slope.
+
+# Flexible-model checks
+
+GAMs, regression trees, random forests and neural networks are used here as diagnostic predictive checks. They are not substitutes for the prespecified survey-weighted interaction model unless they show a clear, reproducible improvement in held-out prediction.
+
+```{r continuous-model-comparison}
+set.seed(3888)
+fold_id <- sample(rep(1:5, length.out = nrow(general_primary)))
+
+predictive_formula <- function(outcome) {
+  as.formula(paste(
+    outcome,
+    "~ fibre_5g_c * pa + age + sex + energy_1000 + income_decile + year12 + smoking + alcohol_10"
+  ))
+}
+
+flexible_formula <- function(outcome) {
+  as.formula(paste(
+    outcome,
+    "~ fibre_5g_c + pa + age + sex + energy_1000 + income_decile + year12 + smoking + alcohol_10"
+  ))
+}
+
+gam_formula <- function(outcome) {
+  as.formula(paste(
+    outcome,
+    "~ pa + s(fibre_5g_c, by = pa, k = 5) + s(age, k = 5) + sex +",
+    "s(energy_1000, k = 5) + income_decile + year12 + smoking + s(alcohol_10, k = 5)"
+  ))
+}
+
+cv_outcome <- function(outcome) {
+  result <- list()
+  k <- 1
+
+  for (fold in 1:5) {
+    train <- general_primary[fold_id != fold, ]
+    test <- general_primary[fold_id == fold, ]
+    y_test <- test[[outcome]]
+
+    lm_fit <- lm(predictive_formula(outcome), data = train, weights = main_weight)
+    gam_fit <- mgcv::gam(gam_formula(outcome), data = train,
+                         weights = main_weight, method = "REML")
+    tree_fit <- rpart::rpart(flexible_formula(outcome), data = train,
+                             weights = main_weight, method = "anova",
+                             control = rpart.control(cp = .005, minbucket = 40))
+
+    preds <- list(
+      `Linear interaction model` = predict(lm_fit, newdata = test),
+      `Generalised additive model` = predict(gam_fit, newdata = test),
+      `Regression tree` = predict(tree_fit, newdata = test)
+    )
+
+    if (has_rf) {
+      rf_fit <- randomForest::randomForest(
+        flexible_formula(outcome), data = train,
+        weights = train$main_weight, ntree = 250, nodesize = 20
+      )
+      preds[["Random forest"]] <- predict(rf_fit, newdata = test)
+    }
+
+    neural_formula <- predictive_formula(outcome)
+    neural_fit <- nnet::nnet(
+      neural_formula, data = train, weights = main_weight,
+      size = 4, linout = TRUE, decay = .01, maxit = 300, trace = FALSE
+    )
+    preds[["Neural network"]] <- as.numeric(predict(neural_fit, newdata = test))
+
+    for (model_name in names(preds)) {
+      result[[k]] <- data.frame(
+        outcome = outcome,
+        fold = fold,
+        model = model_name,
+        RMSE = weighted_rmse(y_test, preds[[model_name]], test$main_weight),
+        MAE = weighted_mae(y_test, preds[[model_name]], test$main_weight),
+        R2 = weighted_r2(y_test, preds[[model_name]], test$main_weight)
+      )
+      k <- k + 1
+    }
+  }
+
+  bind_rows(result)
+}
+
+cv_results <- bind_rows(cv_outcome("bmi"), cv_outcome("waist_cm")) %>%
+  mutate(outcome = recode(outcome, bmi = "BMI", waist_cm = "Waist circumference"))
+
+cv_summary <- cv_results %>%
+  group_by(outcome, model) %>%
+  summarise(
+    RMSE = mean(RMSE),
+    MAE = mean(MAE),
+    R2 = mean(R2),
+    .groups = "drop"
+  )
+```
+
+```{r model-comparison-table, echo=FALSE}
+cv_summary %>%
+  mutate(across(c(RMSE, MAE, R2), ~round(.x, 3))) %>%
+  arrange(outcome, RMSE) %>%
+  kable(caption = "Five-fold weighted predictive performance for continuous outcomes")
+```
+
+The simple linear interaction model remains the inferential model unless the flexible models clearly improve RMSE, MAE and R² together. A small predictive difference does not by itself establish a scientifically meaningful nonlinear interaction.
+
+# Brief Indigenous complementary analysis
+
+The Indigenous NATSINPAS analysis uses Day 1 fibre because few participants completed Day 2. It is a supportive replication check, not a formal comparison with the general-population sample.
+
+```{r indigenous-analysis}
+ind_person <- read.csv("dataset/inp13bsp.csv", check.names = FALSE)
+ind_household <- read.csv("dataset/inp13bhh.csv", check.names = FALSE)
+ind_person$SF2SA1DB <- ind_household$SF2SA1DB[match(ind_person$ABSHID, ind_household$ABSHID)]
+
+ind_all <- ind_person %>%
+  mutate(
+    fibre_5g_c = (FIBRET1 - fibre_reference_g) / 5,
+    bmi = BMISC,
+    waist_cm = PHDCMWBC,
+    pa = factor(ifelse(EXREGUIC == 1, "Met", "Not met"),
+                levels = c("Not met", "Met")),
+    sex = factor(ifelse(SEX == 1, "Men", "Women"),
+                 levels = c("Men", "Women")),
+    age = AGEEC,
+    energy_1000 = ENERGYT1 / 1000,
+    alcohol_10 = ALCT1 / 10,
+    seifa = as.numeric(SF2SA1DB),
+    smoking = factor(SMKSTAT),
+    main_weight = IPAFINWT
+  )
+
+ind_keep <- with(ind_all,
+  age >= 18 & age <= 65 &
+    is.finite(FIBRET1) & FIBRET1 >= 0 &
+    is.finite(bmi) & bmi >= 8 & bmi <= 80 &
+    is.finite(waist_cm) & waist_cm >= 40 & waist_cm <= 200 &
+    EXREGUIC %in% c(1, 2) & SEX %in% c(1, 2) &
+    is.finite(energy_1000) & energy_1000 > 0 &
+    is.finite(alcohol_10) & alcohol_10 >= 0 &
+    SF2SA1DB %in% 1:5 & SMKSTAT %in% 1:5 &
+    is.finite(main_weight) & main_weight > 0
+)
+
+ind_data <- droplevels(ind_all[ind_keep, ])
+ind_repweights <- sprintf("WPM1%03d", 1:250)
+
+ind_covariates <- "ns(age, df = 3) + sex + energy_1000 + seifa + smoking + alcohol_10"
+ind_bmi_model <- fit_replicate_lm(
+  ind_data,
+  as.formula(paste("bmi ~ fibre_5g_c * pa +", ind_covariates)),
+  ind_repweights
+)
+ind_waist_model <- fit_replicate_lm(
+  ind_data,
+  as.formula(paste("waist_cm ~ fibre_5g_c * pa +", ind_covariates)),
+  ind_repweights
+)
+
+ind_results <- bind_rows(
+  continuous_table(ind_bmi_model) %>%
+    filter(term == "fibre_5g_c:paMet") %>% mutate(outcome = "BMI"),
+  continuous_table(ind_waist_model) %>%
+    filter(term == "fibre_5g_c:paMet") %>% mutate(outcome = "Waist circumference")
+)
+```
+
+```{r indigenous-table, echo=FALSE}
+ind_results %>%
+  transmute(
+    Outcome = outcome,
+    `Interaction estimate` = sprintf("%.2f", estimate),
+    `95% CI` = sprintf("%.2f to %.2f", ci_low, ci_high),
+    `p-value` = fmt_p(p_value)
+  ) %>%
+  kable(caption = paste0(
+    "Brief Indigenous Day 1 complementary analysis (unweighted n = ",
+    format(nrow(ind_data), big.mark = ","), ")"
+  ))
+```
+
+Do not describe differences between the two surveys as Indigenous versus non-Indigenous effects. The surveys have different dietary recall availability and sampling frames, and the general NNPAS file does not support a clean mutually exclusive non-Indigenous comparison.
+
+# Statistical conclusion
+
+```{r automatic-conclusion, echo=FALSE, results='asis'}
+bmi_int <- interaction_results %>% filter(outcome == "BMI")
+waist_int <- interaction_results %>% filter(outcome == "Waist circumference")
+
+cat(
+  "For BMI, the fibre × PA interaction was **",
+  sprintf("%.2f", bmi_int$estimate), " kg/m² per 5 g/day** (95% CI ",
+  sprintf("%.2f", bmi_int$ci_low), " to ", sprintf("%.2f", bmi_int$ci_high),
+  "; raw p ", fmt_p(bmi_int$p_value), "; Holm-adjusted p ",
+  fmt_p(bmi_int$holm_p), ").  \n\n", sep = ""
+)
+
+cat(
+  "For waist circumference, the interaction was **",
+  sprintf("%.2f", waist_int$estimate), " cm per 5 g/day** (95% CI ",
+  sprintf("%.2f", waist_int$ci_low), " to ", sprintf("%.2f", waist_int$ci_high),
+  "; raw p ", fmt_p(waist_int$p_value), "; Holm-adjusted p ",
+  fmt_p(waist_int$holm_p), ").  \n\n", sep = ""
+)
+
+if (all(interaction_results$holm_p >= .05)) {
+  cat("**Conclusion:** Neither primary outcome provided clear evidence that physical activity modified the fibre–adiposity association after adjustment and multiplicity control. This is evidence of uncertainty or similarity of slopes, not proof that the true interaction is exactly zero.\n")
+} else {
+  cat("**Conclusion:** At least one primary adiposity outcome provided evidence that the fibre slope differed by physical activity status after multiplicity control. The magnitude, confidence interval and agreement across sensitivity analyses should determine whether the difference is scientifically meaningful.\n")
+}
+```
+
+# Limitations
+
+- Cross-sectional associations cannot establish that changing fibre or PA causes BMI or waist circumference to change.
+- Two 24-hour recalls reduce but do not eliminate within-person dietary measurement error.
+- Fibre, energy intake and PA are self-reported, whereas BMI and waist were measured.
+- Pregnancy could not be identified in the supplied extract.
+- Complete-case analysis can introduce selection bias. A final manuscript should add principled multiple imputation if the required software and survey variables are available.
+- BMI does not distinguish fat from lean mass; waist circumference complements BMI but is also an imperfect measure of adiposity.
+- Broader dietary pattern, food environment and healthy-volunteer effects may produce residual confounding.
+- The Indigenous analysis uses Day 1 fibre and is supportive only.
+
+# Reproducibility outputs
+
+```{r save-outputs}
+output_dir <- "output/rq3_continuous_primary"
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+write.csv(primary_effects,
+          file.path(output_dir, "primary_continuous_effects.csv"), row.names = FALSE)
+write.csv(interaction_results,
+          file.path(output_dir, "primary_interactions_holm.csv"), row.names = FALSE)
+write.csv(prediction_data,
+          file.path(output_dir, "adjusted_prediction_curves.csv"), row.names = FALSE)
+write.csv(continuous_sensitivity,
+          file.path(output_dir, "continuous_sensitivity_interactions.csv"), row.names = FALSE)
+write.csv(binary_sensitivity,
+          file.path(output_dir, "binary_threshold_sensitivity.csv"), row.names = FALSE)
+write.csv(cv_summary,
+          file.path(output_dir, "continuous_model_comparison.csv"), row.names = FALSE)
+write.csv(ind_results,
+          file.path(output_dir, "indigenous_complement.csv"), row.names = FALSE)
+```
+
+# Source notes
+
+- `Tips for Project 1 (1).pdf`: advises considering continuous BMI, waist circumference, robust regression, GAMs, tree-based checks and careful presentation.
+- `Team 5.pdf`: prioritises RQ3, survey weights, causal confounder selection, flexible-model checks, imputation consideration and human-readable output.
+- Australian Government BMI and waist guidance: https://www.health.gov.au/topics/overweight-and-obesity/bmi-and-waist
