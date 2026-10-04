@@ -1,0 +1,21 @@
+"outcome_set","cohort","Analysis","n","OR","Lower","Upper","p"
+"bmi","General NNPAS","Weighted, complete case (primary model)",3960,0.965303247689797,0.857442620931322,1.08673202993848,0.559127028320625
+"bmi","General NNPAS","Weighted, most influential 1% removed (Cook's distance)",3920,0.899428099030004,0.798112589484985,1.01360499255719,0.0821443768939697
+"bmi","General NNPAS","Unweighted logistic",3960,0.911492082255485,0.840614767741641,0.988345491772026,0.0248424528850101
+"bmi","General NNPAS","Unweighted robust logistic (robustbase)",3960,0.913306644361746,0.83978297581349,0.993267368664266,0.0341953299589347
+"bmi","General NNPAS","Multiple imputation (m = 10)",4239,0.966077185329665,0.867210869857363,1.07621474828607,0.530958444700048
+"bmi","Indigenous NATSINPAS (non-remote)","Weighted, complete case (primary model)",408,0.789677542979473,0.536038845846655,1.16333102855849,0.232236945929761
+"bmi","Indigenous NATSINPAS (non-remote)","Weighted, most influential 1% removed (Cook's distance)",403,0.840193435617912,0.567198159135404,1.24458268752404,0.385082579009917
+"bmi","Indigenous NATSINPAS (non-remote)","Unweighted logistic",408,0.845900501037658,0.653590488810838,1.09479508944148,0.203458901210421
+"bmi","Indigenous NATSINPAS (non-remote)","Unweighted robust logistic (robustbase)",408,0.845267574462724,0.650224832378639,1.09881572782204,0.209133652407615
+"bmi","Indigenous NATSINPAS (non-remote)","Multiple imputation (m = 10)",448,0.849350425073006,0.582343074263241,1.23878204524778,0.396452646426348
+"bmi_and_waist","General NNPAS","Weighted, complete case (primary model)",3936,0.990589912653604,0.880793490618045,1.11407314597946,0.874660294297778
+"bmi_and_waist","General NNPAS","Weighted, most influential 1% removed (Cook's distance)",3896,0.924018864020184,0.817979988612081,1.04380409417334,0.203855292288826
+"bmi_and_waist","General NNPAS","Unweighted logistic",3936,0.921714404362937,0.849381776839967,1.00020681674006,0.0505782837596972
+"bmi_and_waist","General NNPAS","Unweighted robust logistic (robustbase)",3936,0.924761904507494,0.849531099649392,1.00665482450409,0.0707952296541537
+"bmi_and_waist","General NNPAS","Multiple imputation (m = 10)",4214,0.986626792155585,0.887173445401302,1.09722899399778,0.80385770782318
+"bmi_and_waist","Indigenous NATSINPAS (non-remote)","Weighted, complete case (primary model)",400,0.797395848277995,0.541203968200739,1.17486230000284,0.252207592165296
+"bmi_and_waist","Indigenous NATSINPAS (non-remote)","Weighted, most influential 1% removed (Cook's distance)",396,0.849741377932841,0.573404542104877,1.25925129005891,0.417169556457158
+"bmi_and_waist","Indigenous NATSINPAS (non-remote)","Unweighted logistic",400,0.856105608765357,0.661045816391835,1.10872317044522,0.238931614113015
+"bmi_and_waist","Indigenous NATSINPAS (non-remote)","Unweighted robust logistic (robustbase)",400,0.85831036155685,0.65977113148859,1.11659428792178,0.25497661124957
+"bmi_and_waist","Indigenous NATSINPAS (non-remote)","Multiple imputation (m = 10)",439,0.856034604181102,0.586886740497453,1.24861441397427,0.419596785079224
