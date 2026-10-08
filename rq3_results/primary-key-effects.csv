@@ -1,0 +1,25 @@
+"cohort","outcome","n","effect","estimate","lower","upper","p"
+"General NNPAS","bmi",3897,"Fibre, per 5 g/day: below 150 min/week",-0.510805277517473,-0.726369427824807,-0.29524112721014,3.40972688661892e-06
+"General NNPAS","bmi",3897,"Fibre, per 5 g/day: at least 150 min/week",-0.389711173590908,-0.570439422687772,-0.208982924494044,2.37436217775894e-05
+"General NNPAS","bmi",3897,"Fibre x activity interaction",0.121094103926565,-0.164070470454496,0.406258678307626,0.405235735309318
+"General NNPAS","bmi",3897,"Activity (at least vs below 150 min/week) at 20 g/day fibre",-0.515396199853754,-1.02089115214621,-0.00990124756130106,0.0456742890670007
+"General NNPAS","waist",3897,"Fibre, per 5 g/day: below 150 min/week",-1.21193457294192,-1.7139029925441,-0.709966153339745,2.22149987649926e-06
+"General NNPAS","waist",3897,"Fibre, per 5 g/day: at least 150 min/week",-1.03064739028112,-1.5164061268384,-0.544888653723846,3.20225392382722e-05
+"General NNPAS","waist",3897,"Fibre x activity interaction",0.181287182660801,-0.535103934608792,0.897678299930393,0.619901419272558
+"General NNPAS","waist",3897,"Activity (at least vs below 150 min/week) at 20 g/day fibre",-2.24887688720463,-3.62877873591953,-0.868975038489736,0.0014017803480172
+"General NNPAS","obese",3897,"Fibre, per 5 g/day: below 150 min/week",0.834756309100497,0.762802044040982,0.913497939637991,8.59269718625968e-05
+"General NNPAS","obese",3897,"Fibre, per 5 g/day: at least 150 min/week",0.820292061321438,0.737984207848792,0.911779762643433,0.000240696702839819
+"General NNPAS","obese",3897,"Fibre x activity interaction",0.982672490616278,0.872431486823127,1.10684361855199,0.773411253179651
+"General NNPAS","obese",3897,"Activity (at least vs below 150 min/week) at 20 g/day fibre",0.807551326239367,0.648852653680683,1.00506508035628,0.0555254181404317
+"Indigenous NATSINPAS (non-remote)","bmi",389,"Fibre, per 5 g/day: below 150 min/week",0.132557558614271,-0.8954658760356,1.16058099326414,0.800476523653025
+"Indigenous NATSINPAS (non-remote)","bmi",389,"Fibre, per 5 g/day: at least 150 min/week",-0.413887311871641,-1.18222482398563,0.354450200242346,0.291054610748518
+"Indigenous NATSINPAS (non-remote)","bmi",389,"Fibre x activity interaction",-0.546444870485913,-1.7053955083931,0.612505767421274,0.355413742461227
+"Indigenous NATSINPAS (non-remote)","bmi",389,"Activity (at least vs below 150 min/week) at 20 g/day fibre",-1.67425405593062,-3.76221708839597,0.413708976534731,0.116032760795009
+"Indigenous NATSINPAS (non-remote)","waist",389,"Fibre, per 5 g/day: below 150 min/week",-0.162414966708667,-2.70500382730001,2.38017389388267,0.900364840687863
+"Indigenous NATSINPAS (non-remote)","waist",389,"Fibre, per 5 g/day: at least 150 min/week",-1.23807041594722,-3.15026123292268,0.674120401028242,0.204432135804036
+"Indigenous NATSINPAS (non-remote)","waist",389,"Fibre x activity interaction",-1.07565544923855,-4.06519763358575,1.91388673510865,0.480673390644075
+"Indigenous NATSINPAS (non-remote)","waist",389,"Activity (at least vs below 150 min/week) at 20 g/day fibre",-3.36930584232853,-8.81482915022011,2.07621746556305,0.225240793840536
+"Indigenous NATSINPAS (non-remote)","obese",389,"Fibre, per 5 g/day: below 150 min/week",1.07862934516832,0.778700837789025,1.4940798928143,0.648873600417959
+"Indigenous NATSINPAS (non-remote)","obese",389,"Fibre, per 5 g/day: at least 150 min/week",0.890144935770677,0.625624720453188,1.26650687029153,0.517754578834857
+"Indigenous NATSINPAS (non-remote)","obese",389,"Fibre x activity interaction",0.825255626279826,0.547470383470717,1.24398847731082,0.358990946356318
+"Indigenous NATSINPAS (non-remote)","obese",389,"Activity (at least vs below 150 min/week) at 20 g/day fibre",0.489059469170691,0.24368397348579,0.981513724370822,0.0441672463206912

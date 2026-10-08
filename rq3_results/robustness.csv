@@ -1,0 +1,31 @@
+"cohort","outcome","analysis","n","estimate","lower","upper","p"
+"General NNPAS","bmi","Weighted, complete case (primary model)",3897,0.121094103926565,-0.164070470454496,0.406258678307626,0.405235735309318
+"General NNPAS","bmi","Weighted, most influential 1% removed (Cook's distance)",3858,0.0755585435818421,-0.212613536444513,0.363730623608197,0.607314353314897
+"General NNPAS","bmi","Unweighted standard model",3897,-0.017393636411537,-0.183940274123212,0.149153001300138,0.837809191581872
+"General NNPAS","bmi","Unweighted robust model (robustbase)",3897,-0.0630962655178919,-0.212383026563527,0.0861904955277436,0.407445798163763
+"General NNPAS","bmi","Multiple imputation (m = 10)",4170,0.125470236492862,-0.115747574662622,0.366688047648346,0.307965446514126
+"General NNPAS","waist","Weighted, complete case (primary model)",3897,0.181287182660801,-0.535103934608792,0.897678299930393,0.619901419272558
+"General NNPAS","waist","Weighted, most influential 1% removed (Cook's distance)",3858,0.0323173951909237,-0.648303693196267,0.712938483578114,0.92585181414595
+"General NNPAS","waist","Unweighted standard model",3897,-0.214180362235906,-0.619830875532765,0.191470151060954,0.300731971741107
+"General NNPAS","waist","Unweighted robust model (robustbase)",3897,-0.297827920246233,-0.687734300181368,0.0920784596889035,0.134357977126459
+"General NNPAS","waist","Multiple imputation (m = 10)",4170,0.156729633260383,-0.45080369367862,0.764262960199385,0.613112944181351
+"General NNPAS","obese","Weighted, complete case (primary model)",3897,0.982672490616278,0.872431486823127,1.10684361855199,0.773411253179651
+"General NNPAS","obese","Weighted, most influential 1% removed (Cook's distance)",3858,0.919733198191922,0.812881292800325,1.04063061033455,0.184203839567453
+"General NNPAS","obese","Unweighted standard model",3897,0.911192733335201,0.839707021316171,0.988764147739878,0.0256763883132034
+"General NNPAS","obese","Unweighted robust model (robustbase)",3897,0.905922038196301,0.831875288481755,0.98655982531658,0.0231454320392706
+"General NNPAS","obese","Multiple imputation (m = 10)",4170,0.97931265119102,0.880489097432724,1.08922787525607,0.70010699445175
+"Indigenous NATSINPAS (non-remote)","bmi","Weighted, complete case (primary model)",389,-0.546444870485913,-1.7053955083931,0.612505767421274,0.355413742461227
+"Indigenous NATSINPAS (non-remote)","bmi","Weighted, most influential 1% removed (Cook's distance)",385,-0.665684554318391,-1.7520120907454,0.420642982108624,0.229728936277504
+"Indigenous NATSINPAS (non-remote)","bmi","Unweighted standard model",389,-0.380151984681257,-1.22173138463514,0.46142741527263,0.375964323213455
+"Indigenous NATSINPAS (non-remote)","bmi","Unweighted robust model (robustbase)",389,-0.479330572829135,-1.34233131583438,0.383670170176108,0.276317376298339
+"Indigenous NATSINPAS (non-remote)","bmi","Multiple imputation (m = 10)",427,-0.46781851611625,-1.58965807149784,0.654021039265344,0.413734179562201
+"Indigenous NATSINPAS (non-remote)","waist","Weighted, complete case (primary model)",389,-1.07565544923855,-4.06519763358575,1.91388673510865,0.480673390644075
+"Indigenous NATSINPAS (non-remote)","waist","Weighted, most influential 1% removed (Cook's distance)",385,-1.19769890272387,-4.12858187958245,1.73318407413471,0.423160764449138
+"Indigenous NATSINPAS (non-remote)","waist","Unweighted standard model",389,-1.22369506068215,-3.19450007272121,0.747109951356909,0.223609501899095
+"Indigenous NATSINPAS (non-remote)","waist","Unweighted robust model (robustbase)",389,-1.16573998404464,-3.34940231280388,1.01792234471461,0.295404690869314
+"Indigenous NATSINPAS (non-remote)","waist","Multiple imputation (m = 10)",427,-0.803638216869462,-3.66263576386078,2.05535933012185,0.581676053553708
+"Indigenous NATSINPAS (non-remote)","obese","Weighted, complete case (primary model)",389,0.825255626279826,0.547470383470717,1.24398847731082,0.358990946356318
+"Indigenous NATSINPAS (non-remote)","obese","Weighted, most influential 1% removed (Cook's distance)",385,0.846251897682551,0.565491927673164,1.26640583054481,0.416984377695309
+"Indigenous NATSINPAS (non-remote)","obese","Unweighted standard model",389,0.872067170023582,0.671519338514047,1.1325081876507,0.304559719890915
+"Indigenous NATSINPAS (non-remote)","obese","Unweighted robust model (robustbase)",389,0.870320306161363,0.666896691239842,1.13579426208968,0.306516019845514
+"Indigenous NATSINPAS (non-remote)","obese","Multiple imputation (m = 10)",427,0.877434654298071,0.590167319210503,1.30453101603982,0.518158189295847

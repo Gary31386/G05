@@ -1,0 +1,17 @@
+"cohort","variable","n_missing","pct_missing"
+"General NNPAS","age_cat",0,0
+"General NNPAS","female",0,0
+"General NNPAS","energy_mj",5,0.1
+"General NNPAS","income",269,6.5
+"General NNPAS","year12",0,0
+"General NNPAS","smoking",0,0
+"General NNPAS","alcohol",0,0
+"General NNPAS","protein10",0,0
+"Indigenous NATSINPAS (non-remote)","age_cat",0,0
+"Indigenous NATSINPAS (non-remote)","female",0,0
+"Indigenous NATSINPAS (non-remote)","energy_mj",0,0
+"Indigenous NATSINPAS (non-remote)","income",37,8.7
+"Indigenous NATSINPAS (non-remote)","year12",1,0.2
+"Indigenous NATSINPAS (non-remote)","smoking",0,0
+"Indigenous NATSINPAS (non-remote)","alcohol",0,0
+"Indigenous NATSINPAS (non-remote)","protein10",0,0
