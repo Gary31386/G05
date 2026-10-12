@@ -1,0 +1,13 @@
+"cohort","variable","n","min","q01","q05","median","q95","q99","max"
+"General NNPAS","Fibre (g/day)",4170,1.145,6.575,9.875,21.68,41.645,55.99,103.035
+"General NNPAS","BMI (kg/m2)",4170,15.74,17.62,19.51,26.17,37.23,43.35,57.25
+"General NNPAS","Waist (cm)",4170,50.5,64,70,90,117,129,140
+"General NNPAS","Energy (MJ/day)",4165,0.91366,3.169355,4.515335,8.395805,14.199125,17.039045,26.142085
+"General NNPAS","Alcohol (g/day)",4170,0,0,0,0,66.155,115.845,367.875
+"General NNPAS","Age (years)",4170,18,18,19,40,62,65,65
+"Indigenous NATSINPAS (non-remote)","Fibre (g/day)",427,1.9237,3.931475,7.4166,17.14535,32.56171,43.141795,60.69916
+"Indigenous NATSINPAS (non-remote)","BMI (kg/m2)",427,17.52,18.61,19.95,28.65,43.36,51.77,53.78
+"Indigenous NATSINPAS (non-remote)","Waist (cm)",427,68,68,72.4,97,133.2,140,140
+"Indigenous NATSINPAS (non-remote)","Energy (MJ/day)",427,1.685414,2.921989875,3.88314325,7.903231,15.75045175,19.2441958,24.6362575
+"Indigenous NATSINPAS (non-remote)","Alcohol (g/day)",427,0,0,0,0,61.3575,122.67975,220.204
+"Indigenous NATSINPAS (non-remote)","Age (years)",427,18,18,19,36,60,65,65

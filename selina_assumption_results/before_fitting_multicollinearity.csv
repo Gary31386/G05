@@ -1,0 +1,29 @@
+"cohort","term","vif"
+"General NNPAS","Fibre (per 5 g/day)",1.64992389816091
+"General NNPAS","Activity ≥150 min/week (vs below)",1.05842275322457
+"General NNPAS","Age 30–39 years (vs 18–29)",1.79303633537533
+"General NNPAS","Age 40–49 years (vs 18–29)",1.88188013548441
+"General NNPAS","Age 50–59 years (vs 18–29)",1.97837475682136
+"General NNPAS","Age 60–65 years (vs 18–29)",1.71315109364099
+"General NNPAS","Female (vs male)",1.23148502505982
+"General NNPAS","Energy (per MJ/day)",3.30705965755248
+"General NNPAS","Household income (per decile)",1.17430660168789
+"General NNPAS","Completed Year 12 (vs not)",1.26501894324343
+"General NNPAS","Former smoker (vs never)",1.21014113404511
+"General NNPAS","Current smoker (vs never)",1.27908413004267
+"General NNPAS","Alcohol (log scale)",1.36618838217296
+"General NNPAS","Protein (per 10 g/day)",2.31943926106955
+"Indigenous NATSINPAS (non-remote)","Fibre (per 5 g/day)",1.63714808054453
+"Indigenous NATSINPAS (non-remote)","Activity ≥150 min/week (vs below)",1.1011534315617
+"Indigenous NATSINPAS (non-remote)","Age 30–39 years (vs 18–29)",1.43854411502908
+"Indigenous NATSINPAS (non-remote)","Age 40–49 years (vs 18–29)",1.57580188218005
+"Indigenous NATSINPAS (non-remote)","Age 50–59 years (vs 18–29)",1.57211644426425
+"Indigenous NATSINPAS (non-remote)","Age 60–65 years (vs 18–29)",1.49567241346754
+"Indigenous NATSINPAS (non-remote)","Female (vs male)",1.28883788883459
+"Indigenous NATSINPAS (non-remote)","Energy (per MJ/day)",3.34417735376971
+"Indigenous NATSINPAS (non-remote)","Household income (per decile)",1.17294699845799
+"Indigenous NATSINPAS (non-remote)","Completed Year 12 (vs not)",1.29324700916374
+"Indigenous NATSINPAS (non-remote)","Former smoker (vs never)",1.55962587176856
+"Indigenous NATSINPAS (non-remote)","Current smoker (vs never)",1.64314055884568
+"Indigenous NATSINPAS (non-remote)","Alcohol (log scale)",1.30966922685588
+"Indigenous NATSINPAS (non-remote)","Protein (per 10 g/day)",2.69181644295838
