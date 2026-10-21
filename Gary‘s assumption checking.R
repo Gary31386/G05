@@ -908,5 +908,19 @@ print(cv_comparison_plot)
 # 2. Lower Brier score and log loss indicate better probability prediction.
 # 3. If Tree, RF or GAM do not consistently improve on GLM, the simpler
 #    Person 1-style model is reasonably supported as a predictive form.
-# 4. GAM EDF values clearly above 1 suggest nonlinearity.
+# 4. GAM EDF values clearly above 1 suggest non-linearity.
 # 5. RF importance is predictive importance, not a causal effect estimate.
+
+# limitation:
+# Measurement error leads to bias problem.
+# Missing data not at random.
+# Non-linearity
+# Random forest model has better fitness.
+# Sample limitations
+# There are less data in the indigenous data.        
+# Not a formal Indigenous vs non-Indigenous comparison
+# Not verified group, two surveys differ in year.
+# Observational study
+# Residual confounding is possible.
+# Variable choice
+# the Indigenous survey has no Day 2 weight.
